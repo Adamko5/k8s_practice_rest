@@ -55,6 +55,6 @@ flowchart TB
     end
 ```
 
-Planned architecture at three API replicas. The four VMs have booted and passed SSH checks; each has its own Linux kernel, disk, virtual NIC, and IP address. The owner will install containerd and Kubernetes manually with kubeadm.
+Planned architecture at three API replicas. The four VMs each have their own Linux kernel, disk, virtual NIC, and IP address. Containerd is installed on all four; Kubernetes bootstrap with kubeadm and the workloads shown above remain planned.
 
 HPA scales the API across three existing workers. PostgreSQL starts as one persistent instance with backups exported outside the guest disks. Local storage stays tied to its worker. All VMs share one physical host; control-plane redundancy and physical host failover are outside this first experiment.

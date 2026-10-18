@@ -10,7 +10,7 @@ The aim is to understand the setup as well as the application: machine networkin
 
 Four Ubuntu Server VMs now run under QEMU/KVM and libvirt inside the dedicated WSL distro `k8s-lab`. All four finished cloud-init and passed SSH checks. Control-plane KVM acceleration and traffic between the control plane and worker 1 were verified. The earlier kind cluster was removed to practise manual machine preparation and Kubernetes installation.
 
-Guest identity, clock, network, and firewall checks are complete. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Guest OS preparation is next, followed by containerd, Kubernetes, and the application.
+Guest identity, clock, network, and firewall checks are complete, along with guest OS preparation. Containerd is installed and verified after reboot on all four VMs. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Kubernetes installation comes next, followed by the application.
 
 ## The machines and the experiment
 
@@ -58,6 +58,7 @@ The committed `.env` contains intentionally public credentials for the disposabl
 - [Host and workspace](docs/lessons/01-host-and-workspace.md): completed observations and current workstation checks.
 - [Create the Linux machines](docs/lessons/02-virtual-machine-feasibility.md): VM creation and initial checks.
 - [Verify the Linux machines](docs/lessons/03-verify-the-linux-machines.md): guest identity, clocks, and networking.
-- [Next lesson: prepare Linux for Kubernetes](docs/lessons/04-prepare-linux-for-kubernetes.md): swap, kernel modules, network sysctls, and a reboot check.
+- [Prepare Linux for Kubernetes](docs/lessons/04-prepare-linux-for-kubernetes.md): swap, kernel modules, network sysctls, and a reboot check.
+- [Install and inspect containerd](docs/lessons/05-install-containerd.md): runtime packages, CRI, systemd cgroups, and commands to try.
 - [Architecture](ARCHITECTURE.md): the planned components and connections.
 - [AI collaboration context](AGENTS.md): scope and guidance for continuing the lab.

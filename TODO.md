@@ -12,13 +12,13 @@ The owner wants the experience of administering separate remote Linux machines. 
 - [x] Create the dedicated Ubuntu 24.04 WSL distro `k8s-lab`, verify its `lab` login, and move its storage to `C:\Me\Dev\WSL\k8s-lab`. VM tools and guest disks will live there, separate from personal Ubuntu.
 - [x] Create four plain Ubuntu VMs with QEMU/KVM + libvirt and verify SSH and cloud-init on each. Control-plane KVM acceleration and two-way TCP connectivity with worker 1 were verified.
 
-The owner completed Lesson 03's identity, clock, TCP/22, DNS/HTTPS, and firewall inspections. Next: [Lesson 04, prepare the guest OS](docs/lessons/04-prepare-linux-for-kubernetes.md). Kubernetes/CNI port checks follow when those components are installed.
+The owner completed Lesson 03's machine inspections and Lesson 04's guest OS preparation. At the owner's request, the agent installed containerd, runc, and crictl on all four VMs and verified runtime readiness after reboot. [Lesson 05](docs/lessons/05-install-containerd.md) explains the runtime and gives inspection commands. Next: step 09, Kubernetes node tools. Kubernetes/CNI port checks follow when those components are installed.
 
 The API language and framework remain the owner's choice. PostgreSQL, fictional banking data, k6, and the final HPA experiment stay in scope. Kafka and database replication/sharding remain deferred.
 
 ## How to use this plan
 
-Work through one numbered step at a time. Keep machine provisioning, Linux host preparation, Kubernetes bootstrap, cluster administration, application configuration, and application code separate. Run the first installation manually, inspect it, and only then capture reusable automation that preserves the visible lesson boundaries.
+Work through one numbered step at a time. Keep machine provisioning, Linux host preparation, Kubernetes bootstrap, cluster administration, application configuration, and application code separate. Keep commands visible and inspect each stage. When the owner asks the agent to execute a stage, explain the resulting setup and give a few commands to explore it.
 
 Keep executable environment definitions and their commands in `environment/`. Lessons explain why each group exists and link to that command reference. Every command must identify its execution context: WSL workstation, a named VM over SSH, or a container inside a Pod. Mark a check complete only after observing its result. Paths below are planned outputs until their files have been created and validated.
 
@@ -73,7 +73,7 @@ Check: four full Linux guests exist and can be administered independently; no `k
 Focus: machines have addresses; services listen on ports. Continue with [Lesson 03](docs/lessons/03-verify-the-linux-machines.md).
 
 - [x] Verify WSL-to-guest SSH, guest-to-guest TCP/22, outbound DNS, and HTTPS access to the Ubuntu archive.
-- [ ] Confirm access to the selected runtime packages and container registry during their installation.
+- [x] Confirm access to the selected runtime packages and container registry during their installation.
 - [ ] Establish stable control-plane IP/name resolution and document the intended API endpoint on port 6443.
 - [ ] Review guest firewall rules and Kubernetes/CNI port requirements without disabling firewalls as a blanket fix.
 - [ ] Separate VM addresses, the planned Pod network, the Service network, and the later NodePort 30080. Record routes and MTU assumptions.
@@ -96,20 +96,20 @@ Check: the four hosts can be distinguished and diagnosed before Kubernetes insta
 
 Focus: OS prerequisites. Follow [Lesson 04](docs/lessons/04-prepare-linux-for-kubernetes.md), using the versioned settings in `environment/nodes/`.
 
-- [ ] Choose and apply the guest swap policy explicitly; start with swap disabled for the first kubeadm build.
-- [ ] Apply the kernel modules, forwarding, bridge/network sysctls, and other prerequisites required by the selected runtime and CNI versions.
-- [ ] Explain transient versus persistent settings and verify them after a guest reboot.
-- [ ] Record every change and its purpose. Run these commands inside the guests, not on the WSL workstation.
+- [x] Choose and apply the guest swap policy explicitly; start with swap disabled for the first kubeadm build.
+- [x] Apply the kernel modules, forwarding, bridge/network sysctls, and other prerequisites required by the selected runtime and CNI versions.
+- [x] Explain transient versus persistent settings and verify them after a guest reboot.
+- [x] Record every change and its purpose. Run these commands inside the guests, not on the WSL workstation.
 
 Check: all four guests satisfy the selected Kubernetes installation prerequisites after reboot.
 
 ### 08. Install and configure containerd
 
-Focus: the Container Runtime Interface (CRI) and cgroups.
+Focus: the Container Runtime Interface (CRI) and cgroups. Follow [Lesson 05](docs/lessons/05-install-containerd.md), using `environment/runtime/`.
 
-- [ ] Select and pin a containerd release compatible with the chosen Kubernetes version and guest OS.
-- [ ] Install it manually on each VM, enable CRI, and configure systemd cgroups using the correct configuration format for that containerd version.
-- [ ] Inspect the service, socket, logs, and runtime information before installing the control plane. Explain Docker image building versus containerd running Pods.
+- [x] Select and pin a containerd release compatible with the chosen Kubernetes version and guest OS: Ubuntu containerd `2.2.1-0ubuntu1~24.04.3`, runc `1.3.4-0ubuntu1~24.04.1`, and crictl `v1.36.0` for the planned Kubernetes 1.36 cluster.
+- [x] Install the pinned packages on each VM, enable CRI, and configure systemd cgroups using the correct configuration format for that containerd version.
+- [x] Inspect the service, socket, logs, and runtime information before installing the control plane. Verify the pause image pull and configuration after reboot on every guest. Containerd runs containers; an application image build remains a separate later step.
 
 Check: the runtime is healthy on every VM and its configuration is understood independently of Kubernetes.
 

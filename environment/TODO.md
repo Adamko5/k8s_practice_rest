@@ -306,7 +306,7 @@ The owner reported steps 10–12 completed successfully. Kubernetes/CNI port che
 
 ## 13. Copy the guest OS settings
 
-- [ ] Inside `k8s-lab`, from `environment/`, copy the two settings files to the existing guests. Start the VMs first if needed.
+- [x] Inside `k8s-lab`, from `environment/`, copy the two settings files to the existing guests. Start the VMs first if needed.
 
 ```bash
 cd /mnt/c/Me/Dev/learning/k8s_commands/environment
@@ -331,7 +331,7 @@ Follow steps 14–18 for this VM. Guest commands run **inside the VM**; reconnec
 
 ## 14. Keep guest swap disabled
 
-- [ ] Inside the guest, disable any active swap and inspect its boot configuration.
+- [x] Inside the guest, disable any active swap and inspect its boot configuration.
 
 ```bash
 hostname
@@ -345,7 +345,7 @@ Expect no swap rows or configured swap units with this image. If any are configu
 
 ## 15. Load the guest kernel modules
 
-- [ ] Inside the guest, install [the module list](nodes/bank-lab-modules.conf) for boot and load the modules now.
+- [x] Inside the guest, install [the module list](nodes/bank-lab-modules.conf) for boot and load the modules now.
 
 ```bash
 sudo install -m 0644 /tmp/bank-lab-modules.conf /etc/modules-load.d/99-bank-lab-k8s.conf
@@ -358,7 +358,7 @@ lsmod | grep -E '^(overlay|br_netfilter)[[:space:]]'
 
 ## 16. Enable guest packet forwarding and bridge filtering
 
-- [ ] Inside the guest, install and apply [the IPv4 settings](nodes/bank-lab-sysctl.conf).
+- [x] Inside the guest, install and apply [the IPv4 settings](nodes/bank-lab-sysctl.conf).
 
 ```bash
 sudo install -m 0644 /tmp/bank-lab-sysctl.conf /etc/sysctl.d/99-bank-lab-k8s.conf
@@ -370,7 +370,7 @@ Both values must be `1`. `ip_forward` permits routing between interfaces; `bridg
 
 ## 17. Check guest systemd and cgroups
 
-- [ ] Inside the guest, check how services and resource groups are managed.
+- [x] Inside the guest, check how services and resource groups are managed.
 
 ```bash
 ps -p 1 -o comm=
@@ -381,7 +381,7 @@ Expect `systemd` and `cgroup2fs`. Containerd and kubelet will use the `systemd` 
 
 ## 18. Reboot and verify persistence
 
-- [ ] Inside the guest, note its boot ID and reboot it.
+- [x] Inside the guest, note its boot ID and reboot it.
 
 ```bash
 cat /proc/sys/kernel/random/boot_id
@@ -409,6 +409,154 @@ systemctl --failed --no-pager
 Require a changed boot ID, no active swap, both modules, both sysctl values `1`, `cgroup2fs`, and no failed units. Return to WSL with `exit`, then repeat steps 14–18 on the next guest. All four must pass before containerd installation.
 
 References: [kubeadm swap policy](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#swap-configuration), [Kubernetes IPv4 forwarding](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/#enable-ipv4-packet-forwarding), [Flannel prerequisites](https://github.com/flannel-io/flannel#deploying-flannel-manually), [systemd boot-time sysctls](https://www.freedesktop.org/software/systemd/man/latest/sysctl.d.html).
+
+The owner reported steps 13–18 completed on all four guests, including reboot verification.
+
+## 19. Copy the containerd settings
+
+- [x] From `environment/` inside `k8s-lab`, copy [the runtime files](runtime/) to each running guest.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+(
+  set -e
+  while read -r name ip mac disk; do
+    ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" \
+      'install -d -m 0755 /tmp/bank-lab-runtime'
+    scp -B -i "$HOME/.ssh/bank-lab" \
+      runtime/versions.env runtime/containerd.toml runtime/crictl.yaml \
+      "lab@$ip:/tmp/bank-lab-runtime/" < /dev/null
+  done < inventory.tsv
+)
+NODE_IP=192.168.77.10
+ssh -i "$HOME/.ssh/bank-lab" "lab@$NODE_IP"
+```
+
+Run steps 20–24 on this guest. Then return to WSL, select the next worker with `NODE_IP`, and repeat. Use the full worker addresses `192.168.77.11`, `192.168.77.12`, and `192.168.77.13`.
+
+## 20. Install the pinned container runtime packages
+
+- [x] Inside the guest, load [the version pins](runtime/versions.env) and install from Ubuntu's existing repositories.
+
+```bash
+hostname
+source /tmp/bank-lab-runtime/versions.env
+test "$(dpkg --print-architecture)" = amd64
+sudo apt-get update
+apt-cache policy containerd runc
+sudo apt-get install -y \
+  "containerd=$CONTAINERD_PACKAGE_VERSION" \
+  "runc=$RUNC_PACKAGE_VERSION"
+sudo apt-mark hold containerd runc
+containerd --version
+runc --version
+```
+
+Expect containerd `2.2.1` and runc `1.3.4`. APT verifies repository signatures and package checksums. Exact versions and holds keep the lab consistent; upgrades require deliberately updating these pins. Containerd manages containers; runc creates their Linux processes and isolation.
+
+## 21. Configure CRI and systemd cgroups
+
+- [x] Inside the guest, install [the containerd 2.x configuration](runtime/containerd.toml), inspect it, and restart the service.
+
+```bash
+sudo install -d -m 0755 /etc/containerd
+sudo install -m 0644 /tmp/bank-lab-runtime/containerd.toml /etc/containerd/config.toml
+sudo containerd --config /etc/containerd/config.toml config dump \
+  | grep -E 'version =|disabled_plugins|snapshotter =|default_runtime_name|runtime_type|SystemdCgroup'
+sudo systemctl enable --now containerd
+sudo systemctl restart containerd
+systemctl is-active containerd
+systemctl is-enabled containerd
+sudo ctr --address /run/containerd/containerd.sock plugins ls
+```
+
+Expect config version `3`, `SystemdCgroup = true`, the `overlayfs` snapshotter, and active/enabled containerd. The CRI image/runtime and OverlayFS plugins must show `ok`. The empty `disabled_plugins` list keeps CRI enabled. This is a guest service; Docker Desktop remains separate.
+
+## 22. Install the CRI inspection client
+
+- [x] Inside the same guest session, download and verify the pinned crictl client, then set its socket endpoints.
+
+```bash
+(
+  set -euo pipefail
+  source /tmp/bank-lab-runtime/versions.env
+  curl -fL --connect-timeout 10 --max-time 120 \
+    "https://github.com/kubernetes-sigs/cri-tools/releases/download/$CRICTL_VERSION/crictl-$CRICTL_VERSION-linux-amd64.tar.gz" \
+    -o /tmp/bank-lab-runtime/crictl.tar.gz
+  printf '%s  %s\n' "$CRICTL_SHA256" /tmp/bank-lab-runtime/crictl.tar.gz | sha256sum -c -
+  tar -xzf /tmp/bank-lab-runtime/crictl.tar.gz -C /tmp/bank-lab-runtime crictl
+  sudo install -m 0755 /tmp/bank-lab-runtime/crictl /usr/local/bin/crictl
+  sudo install -m 0644 /tmp/bank-lab-runtime/crictl.yaml /etc/crictl.yaml
+)
+crictl --version
+```
+
+`crictl` talks to the same CRI API that kubelet will use. Its endpoints come from `/etc/crictl.yaml`; the socket is local to this VM.
+
+## 23. Verify CRI and pull the sandbox image
+
+- [x] Inside the guest, query the runtime and test registry access through CRI.
+
+```bash
+sudo crictl version
+sudo crictl info
+sudo crictl pull registry.k8s.io/pause:3.10.1
+sudo crictl images
+sudo crictl ps -a
+sudo journalctl -u containerd -b -n 30 --no-pager
+```
+
+Require `RuntimeName: containerd`, `RuntimeApiVersion: v1`, `RuntimeReady` true, and the pulled pause image. `NetworkReady` false with `NetworkPluginNotReady` is expected until the CNI is installed. An empty container list is expected. Image download success alone does not prove a Pod can run.
+
+## 24. Verify containerd after a guest reboot
+
+- [x] Inside the guest, remove only the staged runtime files, then reboot.
+
+```bash
+rm -- /tmp/bank-lab-runtime/versions.env /tmp/bank-lab-runtime/containerd.toml \
+  /tmp/bank-lab-runtime/crictl.yaml /tmp/bank-lab-runtime/crictl.tar.gz \
+  /tmp/bank-lab-runtime/crictl
+rmdir -- /tmp/bank-lab-runtime
+sudo reboot
+```
+
+SSH disconnects. Reconnect from the same WSL terminal:
+
+```bash
+ssh -i "$HOME/.ssh/bank-lab" "lab@$NODE_IP"
+```
+
+Inside the rebooted guest:
+
+```bash
+hostname
+systemctl is-active containerd
+systemctl is-enabled containerd
+sudo crictl version
+sudo crictl info
+sudo crictl images
+dpkg-query -W containerd runc
+apt-mark showhold
+systemctl --failed --no-pager
+exit
+```
+
+Require active/enabled containerd, `RuntimeReady` true, the cached pause image, the pinned package versions, both package holds, and no failed units. After all four guests pass, record their package versions from WSL:
+
+```bash
+while read -r name ip mac disk; do
+  mkdir -p ".state/$name"
+  ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" \
+    'dpkg-query -W containerd runc; crictl --version' \
+    > ".state/$name/runtime-versions.txt"
+done < inventory.tsv
+```
+
+Completed on all four guests on 2026-10-18 at the owner's request: pinned packages, systemd cgroups, CRI readiness, pause image pull, and checks after reboot. No failed systemd units remained. Evidence is in ignored `.state/runtime-install-20261018T185649Z/` and `.state/<VM>/`.
+
+Next: install the pinned Kubernetes node tools as a separate lesson. For inspection commands, see [Lesson 05](../docs/lessons/05-install-containerd.md).
+
+References: [Ubuntu containerd package](https://packages.ubuntu.com/noble-updates/containerd), [Ubuntu runc package](https://packages.ubuntu.com/noble-updates/runc), [containerd/Kubernetes compatibility](https://github.com/containerd/containerd/blob/main/RELEASES.md#kubernetes-support), [containerd 2.2 configuration](https://github.com/containerd/containerd/blob/v2.2.1/docs/cri/config.md), [crictl release and checksum](https://github.com/kubernetes-sigs/cri-tools/releases/tag/v1.36.0).
 
 ## Daily commands
 
