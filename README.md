@@ -8,9 +8,9 @@ The aim is to understand the setup as well as the application: machine networkin
 
 ## Project status
 
-The personal Ubuntu WSL workstation is prepared. The separate Ubuntu 24.04 distro `k8s-lab` is created and its `lab` login is verified. An initial kind cluster was created and inspected, then removed to include manual host preparation and Kubernetes installation. The [VM setup commands](environment/TODO.md) are ready to run; the VMs and application have not been created yet.
+Four Ubuntu Server VMs now run under QEMU/KVM and libvirt inside the dedicated WSL distro `k8s-lab`. All four finished cloud-init and passed SSH checks. Control-plane KVM acceleration and traffic between the control plane and worker 1 were verified. The earlier kind cluster was removed to practise manual machine preparation and Kubernetes installation.
 
-The first checkpoint is to validate the VM backend. QEMU/KVM with libvirt inside WSL is the first candidate. Its device is present, but user access and a working accelerated guest have not been verified.
+Guest identity, clock, network, and firewall checks are complete. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Guest OS preparation is next, followed by containerd, Kubernetes, and the application.
 
 ## The machines and the experiment
 
@@ -41,7 +41,7 @@ The API will use synthetic customers, accounts, balances, and transaction histor
 | Part | Choice |
 | --- | --- |
 | Operator workstation | Dedicated Ubuntu 24.04 WSL 2 distro `k8s-lab`, Linux Bash and SSH |
-| Node machines | Four Ubuntu Server VMs; QEMU/KVM + libvirt pending feasibility validation |
+| Node machines | Four Ubuntu Server VMs using QEMU/KVM + libvirt |
 | Kubernetes installation | Upstream Kubernetes, containerd, manual kubeadm, pinned Flannel CNI |
 | Kubernetes operation | kubectl, plain YAML first, Kustomize later |
 | REST API | Language and framework to be decided |
@@ -56,6 +56,8 @@ The committed `.env` contains intentionally public credentials for the disposabl
 - [VM setup](environment/TODO.md): commands to create and check the guests.
 - [Implementation and learning checklist](TODO.md): separate steps from the workstation to the final HPA experiment.
 - [Host and workspace](docs/lessons/01-host-and-workspace.md): completed observations and current workstation checks.
-- [Next checkpoint: VM feasibility](docs/lessons/02-virtual-machine-feasibility.md): what to prove before creating four guests.
+- [Create the Linux machines](docs/lessons/02-virtual-machine-feasibility.md): VM creation and initial checks.
+- [Verify the Linux machines](docs/lessons/03-verify-the-linux-machines.md): guest identity, clocks, and networking.
+- [Next lesson: prepare Linux for Kubernetes](docs/lessons/04-prepare-linux-for-kubernetes.md): swap, kernel modules, network sysctls, and a reboot check.
 - [Architecture](ARCHITECTURE.md): the planned components and connections.
 - [AI collaboration context](AGENTS.md): scope and guidance for continuing the lab.

@@ -2,7 +2,7 @@
 flowchart TB
     subgraph HOST["One physical computer"]
         OP["Ubuntu WSL workstation<br/>SSH, kubectl, curl, k6"]
-        VIRT["VM backend<br/>QEMU/KVM + libvirt candidate"]
+        VIRT["VM backend<br/>QEMU/KVM + libvirt"]
 
         subgraph CLUSTER["Four full Linux VMs on a private network"]
             subgraph CP["bank-lab-cp1 VM"]
@@ -55,6 +55,6 @@ flowchart TB
     end
 ```
 
-Planned architecture at three API replicas. Each VM has its own Linux kernel, disk, virtual NIC, IP address, and SSH access. The owner installs containerd and Kubernetes manually with kubeadm. The VM backend must pass its feasibility check first.
+Planned architecture at three API replicas. The four VMs have booted and passed SSH checks; each has its own Linux kernel, disk, virtual NIC, and IP address. The owner will install containerd and Kubernetes manually with kubeadm.
 
 HPA scales the API across three existing workers. PostgreSQL starts as one persistent instance with backups exported outside the guest disks. Local storage stays tied to its worker. All VMs share one physical host; control-plane redundancy and physical host failover are outside this first experiment.

@@ -231,13 +231,220 @@ while read -r name ip mac disk; do
 done < inventory.tsv
 ```
 
-Retry after boot if SSH is not ready. Next: guest OS prerequisites, containerd, and manual kubeadm setup in [the learning plan](../TODO.md#part-2-manual-kubernetes-installation).
+Retry after boot if SSH is not ready. Continue with the machine checks below; guest OS preparation and containerd follow afterward.
+
+## 10. Check guest identity and time
+
+- [x] From `environment/` inside `k8s-lab`, inspect each guest. Use [start.sh](start.sh) first if the VMs are stopped.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+while read -r name ip mac disk; do
+  printf '\n--- %s (%s) ---\n' "$name" "$ip"
+  ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" '
+    set -e
+    hostname
+    printf "Machine ID: "; cat /etc/machine-id
+    printf "Hardware UUID: "; sudo cat /sys/class/dmi/id/product_uuid
+    ip -brief link
+    timedatectl show -p NTP -p NTPSynchronized
+    command -v kubeadm kubelet kubectl containerd || true
+  '
+done < inventory.tsv
+```
+
+Hostnames, machine IDs, hardware UUIDs, and non-loopback MAC addresses must differ between guests. Expect `NTP=yes`, `NTPSynchronized=yes`, and no paths for the Kubernetes/runtime commands. Stop if an unexpected tool is already installed. [kubeadm machine requirements](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#verify-the-mac-address-and-product-uuid-are-unique-for-every-node).
+
+`ssh -n` keeps SSH from consuming the inventory loop's input. [timedatectl reference](https://www.freedesktop.org/software/systemd/man/latest/timedatectl.html).
+
+## 11. Check traffic between all four guests
+
+- [x] From the same WSL terminal, test TCP port 22 from every guest to every guest.
+
+```bash
+while read -r name ip mac disk; do
+  printf '\n--- From %s ---\n' "$name"
+  ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" '
+    for target in 192.168.77.{10..13}; do
+      if timeout 3 bash -c "echo > /dev/tcp/$target/22" 2>/dev/null; then
+        printf "%s -> %s:22 OK\n" "$(hostname)" "$target"
+      else
+        printf "%s -> %s:22 FAILED\n" "$(hostname)" "$target" >&2
+        exit 1
+      fi
+    done
+  '
+done < inventory.tsv
+```
+
+Require 16 `OK` results, including each guest's connection to itself. This checks SSH's port; Kubernetes and CNI ports are checked during their installation.
+
+## 12. Check DNS, outbound access, and firewalls
+
+- [x] From the same WSL terminal, inspect each guest's routes, DNS, HTTPS access, and firewall rules.
+
+```bash
+while read -r name ip mac disk; do
+  printf '\n--- %s ---\n' "$name"
+  ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" '
+    set -e
+    ip -brief address
+    ip route
+    getent ahostsv4 archive.ubuntu.com pkgs.k8s.io
+    curl -fsSIL --connect-timeout 5 --max-time 15 --output /dev/null \
+      https://archive.ubuntu.com/ubuntu/dists/noble/InRelease
+    printf "Ubuntu archive HTTPS: OK\n"
+    sudo ufw status verbose
+    sudo nft list ruleset
+  '
+done < inventory.tsv
+```
+
+Expect the inventory IP on each guest, default route via `192.168.77.1`, resolved DNS names, and four HTTPS `OK` results. Review any active firewall rules before continuing; this step changes none. The control-plane API will use `192.168.77.10:6443` after kubeadm initialization.
+
+The owner reported steps 10–12 completed successfully. Kubernetes/CNI port checks follow installation of those components.
+
+## 13. Copy the guest OS settings
+
+- [ ] Inside `k8s-lab`, from `environment/`, copy the two settings files to the existing guests. Start the VMs first if needed.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+(
+  set -e
+  while read -r name ip mac disk; do
+    scp -B -i "$HOME/.ssh/bank-lab" \
+      nodes/bank-lab-modules.conf nodes/bank-lab-sysctl.conf \
+      "lab@$ip:/tmp/" < /dev/null
+  done < inventory.tsv
+)
+```
+
+Open the first guest from WSL:
+
+```bash
+NODE_IP=192.168.77.10
+ssh -i "$HOME/.ssh/bank-lab" "lab@$NODE_IP"
+```
+
+Follow steps 14–18 for this VM. Guest commands run **inside the VM**; reconnect commands run in WSL. Finish it, then set `NODE_IP` in WSL to `192.168.77.11`, `.12`, and `.13` in turn and repeat. The SSH prompt must show the guest's name, such as `lab@bank-lab-cp1`.
+
+## 14. Keep guest swap disabled
+
+- [ ] Inside the guest, disable any active swap and inspect its boot configuration.
+
+```bash
+hostname
+sudo swapoff -a
+swapon --show
+findmnt --fstab --types swap || true
+systemctl list-units --all --type=swap --no-pager
+```
+
+Expect no swap rows or configured swap units with this image. If any are configured, resolve their boot configuration before continuing; `swapoff` affects only the current boot. This lab uses swap disabled with kubelet's default policy.
+
+## 15. Load the guest kernel modules
+
+- [ ] Inside the guest, install [the module list](nodes/bank-lab-modules.conf) for boot and load the modules now.
+
+```bash
+sudo install -m 0644 /tmp/bank-lab-modules.conf /etc/modules-load.d/99-bank-lab-k8s.conf
+sudo modprobe overlay
+sudo modprobe br_netfilter
+lsmod | grep -E '^(overlay|br_netfilter)[[:space:]]'
+```
+
+`overlay` supplies container filesystem layers. `br_netfilter` exposes bridged traffic to netfilter and is required by the selected Flannel network. `modprobe` changes the running kernel; `modules-load.d` makes the selection persist across boots.
+
+## 16. Enable guest packet forwarding and bridge filtering
+
+- [ ] Inside the guest, install and apply [the IPv4 settings](nodes/bank-lab-sysctl.conf).
+
+```bash
+sudo install -m 0644 /tmp/bank-lab-sysctl.conf /etc/sysctl.d/99-bank-lab-k8s.conf
+sudo sysctl -p /etc/sysctl.d/99-bank-lab-k8s.conf
+rm -- /tmp/bank-lab-modules.conf /tmp/bank-lab-sysctl.conf
+```
+
+Both values must be `1`. `ip_forward` permits routing between interfaces; `bridge-nf-call-iptables` sends bridged IPv4 traffic through netfilter's IPv4 rules. The file persists these settings; `sysctl -p` applies them now. Firewall rules stay as inspected in step 12.
+
+## 17. Check guest systemd and cgroups
+
+- [ ] Inside the guest, check how services and resource groups are managed.
+
+```bash
+ps -p 1 -o comm=
+stat -fc %T /sys/fs/cgroup
+```
+
+Expect `systemd` and `cgroup2fs`. Containerd and kubelet will use the `systemd` cgroup driver when installed.
+
+## 18. Reboot and verify persistence
+
+- [ ] Inside the guest, note its boot ID and reboot it.
+
+```bash
+cat /proc/sys/kernel/random/boot_id
+sudo reboot
+```
+
+SSH disconnects. From WSL, reconnect after the guest boots; retry if SSH is not ready:
+
+```bash
+ssh -i "$HOME/.ssh/bank-lab" "lab@$NODE_IP"
+```
+
+`NODE_IP` remains set in the WSL terminal while SSH is running. Inside the rebooted guest:
+
+```bash
+hostname
+cat /proc/sys/kernel/random/boot_id
+swapon --show
+lsmod | grep -E '^(overlay|br_netfilter)[[:space:]]'
+sysctl net.ipv4.ip_forward net.bridge.bridge-nf-call-iptables
+stat -fc %T /sys/fs/cgroup
+systemctl --failed --no-pager
+```
+
+Require a changed boot ID, no active swap, both modules, both sysctl values `1`, `cgroup2fs`, and no failed units. Return to WSL with `exit`, then repeat steps 14–18 on the next guest. All four must pass before containerd installation.
+
+References: [kubeadm swap policy](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#swap-configuration), [Kubernetes IPv4 forwarding](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/#enable-ipv4-packet-forwarding), [Flannel prerequisites](https://github.com/flannel-io/flannel#deploying-flannel-manually), [systemd boot-time sysctls](https://www.freedesktop.org/software/systemd/man/latest/sysctl.d.html).
 
 ## Daily commands
 
-WSL, with `export LIBVIRT_DEFAULT_URI=qemu:///system` in the current terminal:
+Start the existing VMs inside `k8s-lab`:
 
 ```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+bash start.sh
+```
+
+Startup activates the lab network/pool, boots the control plane first, and checks SSH on all four VMs using the existing lab key and known host keys. SSH availability does not mean Kubernetes is ready.
+
+Stop them from the same directory:
+
+```bash
+bash stop.sh
+```
+
+Shutdown waits for the workers, then the control plane, then terminates `k8s-lab` and closes its terminal. Other WSL distros and Docker Desktop are left alone. Both scripts use `qemu:///system`, preserve disks, and skip VMs already in the requested state. Each VM wait defaults to 120 seconds; shutdown stops on failure without forcing power off or terminating WSL.
+
+To stop only the VMs and keep the lab terminal open:
+
+```bash
+bash stop.sh --keep-wsl
+```
+
+Reopen `k8s-lab` from Windows, then run `bash start.sh` again:
+
+```powershell
+wsl -d k8s-lab
+```
+
+For individual VM operations inside `k8s-lab`:
+
+```bash
+export LIBVIRT_DEFAULT_URI=qemu:///system
 virsh list --all
 ssh -i "$HOME/.ssh/bank-lab" lab@192.168.77.11
 virsh shutdown bank-lab-worker1
@@ -245,6 +452,6 @@ virsh start bank-lab-worker1
 virsh reboot bank-lab-worker1
 ```
 
-Shutdown is asynchronous. These commands preserve disks. Start the control plane first; shut it down last. Guest autostart is left disabled. Kubernetes maintenance commands follow cluster installation.
+Individual shutdown is asynchronous. Guest autostart is left disabled. Kubernetes maintenance commands follow cluster installation.
 
 References: [Ubuntu libvirt](https://ubuntu.com/server/docs/how-to/virtualisation/libvirt/), [libvirt network settings](https://libvirt.org/formatnetwork.html).

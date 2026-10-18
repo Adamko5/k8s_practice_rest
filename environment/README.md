@@ -13,4 +13,6 @@ Each VM has its own kernel, disk, IP, and SSH server. They share the physical PC
 
 The WSL disk lives in `C:\Me\Dev\WSL\k8s-lab`. VM disks live inside it at `/var/lib/libvirt/images/k8s-banking-lab/`. Sparse VM disks grow as used; 105 GiB is their combined capacity. The repo stays on Windows; generated files go in ignored `.state/`.
 
-Follow [TODO.md](TODO.md). The WSL distro is ready; VM creation commands have not been run yet. This creates plain Linux machines; containerd and Kubernetes come afterward. WSL/KVM support must pass the first-VM checks before continuing.
+All four VMs have booted, finished cloud-init, and passed SSH checks. The owner completed guest identity, clock, network, and firewall checks. Next: [prepare the guest OS](TODO.md#13-copy-the-guest-os-settings), then install containerd.
+
+Follow [TODO.md](TODO.md) to reproduce the setup. Use [start.sh](start.sh) and [stop.sh](stop.sh) for daily startup and shutdown; commands are in [Daily commands](TODO.md#daily-commands).

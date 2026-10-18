@@ -10,9 +10,9 @@ The owner wants the experience of administering separate remote Linux machines. 
 - [x] The initial kind cluster ran successfully; the owner inspected four Ready nodes and system Pods.
 - [x] On 2026-10-18, the owner requested a reset. The named kind cluster, its four node containers, its project kubeconfig, and its default kubeconfig context were removed. The obsolete kind configuration was retired.
 - [x] Create the dedicated Ubuntu 24.04 WSL distro `k8s-lab`, verify its `lab` login, and move its storage to `C:\Me\Dev\WSL\k8s-lab`. VM tools and guest disks will live there, separate from personal Ubuntu.
-- [ ] Validate and implement the replacement VM environment. No VM backend or guest has been installed for this new plan.
+- [x] Create four plain Ubuntu VMs with QEMU/KVM + libvirt and verify SSH and cloud-init on each. Control-plane KVM acceleration and two-way TCP connectivity with worker 1 were verified.
 
-Follow [environment/TODO.md](environment/TODO.md) for VM setup commands. QEMU/KVM with libvirt inside WSL still needs to pass its first-VM checks. The VM tools are not installed yet.
+The owner completed Lesson 03's identity, clock, TCP/22, DNS/HTTPS, and firewall inspections. Next: [Lesson 04, prepare the guest OS](docs/lessons/04-prepare-linux-for-kubernetes.md). Kubernetes/CNI port checks follow when those components are installed.
 
 The API language and framework remain the owner's choice. PostgreSQL, fictional banking data, k6, and the final HPA experiment stay in scope. Kafka and database replication/sharding remain deferred.
 
@@ -70,9 +70,10 @@ Check: four full Linux guests exist and can be administered independently; no `k
 
 ### 05. Verify node networking and service ports
 
-Focus: machines have addresses; services listen on ports.
+Focus: machines have addresses; services listen on ports. Continue with [Lesson 03](docs/lessons/03-verify-the-linux-machines.md).
 
-- [ ] Verify WSL-to-guest SSH and guest-to-guest communication in both directions. Confirm outbound DNS and package/image access.
+- [x] Verify WSL-to-guest SSH, guest-to-guest TCP/22, outbound DNS, and HTTPS access to the Ubuntu archive.
+- [ ] Confirm access to the selected runtime packages and container registry during their installation.
 - [ ] Establish stable control-plane IP/name resolution and document the intended API endpoint on port 6443.
 - [ ] Review guest firewall rules and Kubernetes/CNI port requirements without disabling firewalls as a blanket fix.
 - [ ] Separate VM addresses, the planned Pod network, the Service network, and the later NodePort 30080. Record routes and MTU assumptions.
@@ -81,10 +82,10 @@ Check: required host connections work, address ranges do not overlap, and there 
 
 ### 06. Verify guest identity, time, and basic administration
 
-Focus: each VM behaves as its own host.
+Focus: each VM behaves as its own host. Commands: [Lesson 03](docs/lessons/03-verify-the-linux-machines.md).
 
-- [ ] Verify unique hostnames, MAC addresses, machine IDs, and virtual hardware UUIDs.
-- [ ] Verify time synchronization and working name resolution on every guest.
+- [x] Verify unique hostnames, MAC addresses, machine IDs, and virtual hardware UUIDs.
+- [x] Verify time synchronization and working name resolution on every guest.
 - [ ] Inspect systemd services, network interfaces, memory, CPU, and disk space from each guest. Keep the operator's system configuration separate.
 
 Check: the four hosts can be distinguished and diagnosed before Kubernetes installation.
@@ -93,7 +94,7 @@ Check: the four hosts can be distinguished and diagnosed before Kubernetes insta
 
 ### 07. Prepare the Linux guests for Kubernetes
 
-Focus: OS prerequisites. Planned documented inputs: `environment/nodes/`.
+Focus: OS prerequisites. Follow [Lesson 04](docs/lessons/04-prepare-linux-for-kubernetes.md), using the versioned settings in `environment/nodes/`.
 
 - [ ] Choose and apply the guest swap policy explicitly; start with swap disabled for the first kubeadm build.
 - [ ] Apply the kernel modules, forwarding, bridge/network sysctls, and other prerequisites required by the selected runtime and CNI versions.
