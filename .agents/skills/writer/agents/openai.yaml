@@ -1,0 +1,3 @@
+interface:
+  display_name: "Writer"
+  short_description: "Keep lab docs short and commands explicit"

@@ -1,0 +1,15 @@
+<network>
+  <name>bank-lab</name>
+  <forward mode="nat"/>
+  <bridge name="virbr-bank" stp="on" delay="0"/>
+  <domain name="bank-lab.test" localOnly="yes"/>
+  <ip address="192.168.77.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="192.168.77.10" end="192.168.77.13"/>
+      <host mac="52:54:00:77:00:10" name="bank-lab-cp1" ip="192.168.77.10"/>
+      <host mac="52:54:00:77:00:11" name="bank-lab-worker1" ip="192.168.77.11"/>
+      <host mac="52:54:00:77:00:12" name="bank-lab-worker2" ip="192.168.77.12"/>
+      <host mac="52:54:00:77:00:13" name="bank-lab-worker3" ip="192.168.77.13"/>
+    </dhcp>
+  </ip>
+</network>

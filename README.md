@@ -1,59 +1,61 @@
 # Kubernetes banking lab
 
-A small Kubernetes project for learning deployment and autoscaling from the terminal.
+A hands-on project for building and operating a Kubernetes cluster from a Linux terminal.
 
-I'm building a REST API with fictional banking data and running it on a local Kubernetes cluster. The experiment starts with one API Pod on one worker. As traffic grows, Kubernetes adds API replicas on other workers. When traffic drops, it scales back down.
+I'm setting up four Linux virtual machines, installing Kubernetes with kubeadm, and deploying a small REST API backed by fictional banking data. The final experiment starts with one API Pod on one worker. As traffic grows, a Horizontal Pod Autoscaler (HPA) adds replicas on the other workers, then reduces them when traffic drops.
 
-The aim is to understand the commands, configuration files, and decisions behind that behavior. I'll build the lab in stages, inspect what changes, and practice diagnosing failures along the way.
+The aim is to understand the setup as well as the application: machine networking, Linux services, containerd, cluster bootstrap, Kubernetes manifests, troubleshooting, and scaling.
 
 ## Project status
 
-Host/workspace preparation is complete. Lesson 2 is ready for creating and inspecting the local cluster. The repository currently contains the guides and local configuration; the cluster and application deployment are still to be built.
+The personal Ubuntu WSL workstation is prepared. The separate Ubuntu 24.04 distro `k8s-lab` is created and its `lab` login is verified. An initial kind cluster was created and inspected, then removed to include manual host preparation and Kubernetes installation. The [VM setup commands](environment/TODO.md) are ready to run; the VMs and application have not been created yet.
 
-## The experiment
+The first checkpoint is to validate the VM backend. QEMU/KVM with libvirt inside WSL is the first candidate. Its device is present, but user access and a working accelerated guest have not been verified.
 
-Three worker nodes are available from the start. A Horizontal Pod Autoscaler (HPA) adjusts the number of API replicas, and placement rules keep those replicas on different workers.
+## The machines and the experiment
 
-| Traffic | Worker A | Worker B | Worker C |
-| --- | --- | --- | --- |
-| Low | API replica 1 | Idle API capacity | Idle API capacity |
-| Increasing | API replica 1 | API replica 2 | Idle API capacity |
-| Sustained high load | API replica 1 | API replica 2 | API replica 3 |
+| Machine | Planned responsibility |
+| --- | --- |
+| `bank-lab-cp1` | Kubernetes control plane and its local etcd |
+| `bank-lab-worker1` | API capacity and the initial PostgreSQL storage location |
+| `bank-lab-worker2` | API capacity |
+| `bank-lab-worker3` | API capacity |
 
-This is the intended progression; the actual timing and replica count will depend on measured CPU usage and the HPA settings. PostgreSQL runs as one persistent database instance and may share a worker with an API Pod.
+Each VM has its own Linux kernel, systemd, disk, IP address, and SSH access. The guests communicate as separate hosts, while sharing one physical computer's resources and failure domain. VM creation will prepare plain hosts; the Kubernetes installation stays visible as separate commands.
 
-[kind](https://kind.sigs.k8s.io/docs/user/quick-start/) runs the Kubernetes nodes as Docker containers. They have separate node identities and share the host computer's hardware. The experiment scales Pods across existing nodes; creating new machines automatically is a later topic.
+Three workers exist before autoscaling begins. HPA changes the API's replica count from one to three, and placement rules keep matching API Pods on different workers. Creating new machines automatically is a later topic. PostgreSQL starts as one persistent instance and can share a worker with an API Pod.
 
 ## What I'm learning
 
-- Using `kubectl` to inspect resources, read logs, troubleshoot failures, and manage updates.
-- Writing manifests for Deployments, Services, configuration, credentials, and health probes.
-- Running PostgreSQL with persistent storage, migration Jobs, and a tested backup and restore.
-- Understanding resource requests, limits, and Pod placement across workers.
-- Generating load and measuring how CPU-based autoscaling affects throughput, latency, and errors.
+- Provisioning Linux guests, administering them over SSH, and understanding machine addresses and service ports.
+- Preparing the OS, configuring containerd, running kubeadm init/join, and installing Pod networking.
+- Using kubectl contexts to inspect resources, read logs, troubleshoot failures, and manage updates.
+- Writing manifests for workloads, Services, configuration, credentials, storage, and health probes.
+- Running PostgreSQL with migrations, fictional seed data, and a tested backup and restore.
+- Measuring resource use, placement, and CPU-based autoscaling with repeatable load tests.
 
-The application will use synthetic customers, accounts, balances, and transaction history. The API will include a bounded CPU workload so the first scaling experiment has a clear signal. Database traffic can then help explain when adding API replicas stops improving performance.
+The API will use synthetic customers, accounts, balances, and transaction history. A bounded CPU workload will provide a clear signal for the first HPA experiment. Database-backed traffic can then show when adding API replicas stops helping.
 
 ## Planned tools
 
-| Part | Initial choice |
+| Part | Choice |
 | --- | --- |
-| Terminal workflow | Linux Bash in WSL 2 |
-| Local infrastructure | Docker Desktop with Linux containers, kind |
-| Kubernetes workflow | `kubectl`, plain YAML first, Kustomize later |
+| Operator workstation | Dedicated Ubuntu 24.04 WSL 2 distro `k8s-lab`, Linux Bash and SSH |
+| Node machines | Four Ubuntu Server VMs; QEMU/KVM + libvirt pending feasibility validation |
+| Kubernetes installation | Upstream Kubernetes, containerd, manual kubeadm, pinned Flannel CNI |
+| Kubernetes operation | kubectl, plain YAML first, Kustomize later |
 | REST API | Language and framework to be decided |
 | Database | PostgreSQL |
-| Load generation | k6 |
-| Autoscaling | Metrics Server and Kubernetes HPA |
+| Load and scaling | k6, Metrics Server, autoscaling/v2 HPA |
 
-The committed `.env` contains intentionally public credentials for this disposable local lab. They are part of the reproducible setup and are used only with fictional data.
+The committed `.env` contains intentionally public credentials for the disposable local database. They are part of the reproducible setup and are used only with fictional data.
 
 ## Read the project
 
-- [Start with the host and workspace checks](docs/lessons/01-host-and-workspace.md): Linux commands to run from WSL.
-- [Create the Kubernetes cluster](docs/lessons/02-create-the-cluster.md): define the simulated machines, create them with kind, and inspect the result.
-- [Implementation and learning plan](TODO.md): ordered steps with checks for each concept.
-- [Architecture](ARCHITECTURE.md): the planned components and their connections.
-- [AI collaboration context](AGENTS.md): goals, scope, and guidance for working on the lab.
-
-Reproduction commands and measured results will be added as the corresponding steps are completed.
+- [Environment](environment/README.md): machines and addresses.
+- [VM setup](environment/TODO.md): commands to create and check the guests.
+- [Implementation and learning checklist](TODO.md): separate steps from the workstation to the final HPA experiment.
+- [Host and workspace](docs/lessons/01-host-and-workspace.md): completed observations and current workstation checks.
+- [Next checkpoint: VM feasibility](docs/lessons/02-virtual-machine-feasibility.md): what to prove before creating four guests.
+- [Architecture](ARCHITECTURE.md): the planned components and connections.
+- [AI collaboration context](AGENTS.md): scope and guidance for continuing the lab.

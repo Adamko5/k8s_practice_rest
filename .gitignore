@@ -8,10 +8,11 @@ Desktop.ini
 # Local lab .env files and fixture credentials are intentionally versioned.
 # See AGENTS.md for the policy and evidence-based exceptions.
 
-# Generated, per-cluster access configuration; recreated by kind
+# Generated cluster access and VM seed/runtime artifacts
 .kube/
 kubeconfig
 *.kubeconfig
+/environment/.state/
 
 # Local backups, logs, and generated output
 /backups/
