@@ -500,7 +500,7 @@ crictl --version
 ```bash
 sudo crictl version
 sudo crictl info
-sudo crictl pull registry.k8s.io/pause:3.10.1
+sudo crictl pull registry.k8s.io/pause:3.10.2
 sudo crictl images
 sudo crictl ps -a
 sudo journalctl -u containerd -b -n 30 --no-pager
@@ -552,7 +552,7 @@ while read -r name ip mac disk; do
 done < inventory.tsv
 ```
 
-Completed on all four guests on 2026-10-18 at the owner's request: pinned packages, systemd cgroups, CRI readiness, pause image pull, and checks after reboot. No failed systemd units remained. Evidence is in ignored `.state/runtime-install-20261018T185649Z/` and `.state/<VM>/`.
+Completed on all four guests on 2026-10-18 at the owner's request: pinned packages, systemd cgroups, CRI readiness, pause image pull, and checks after reboot. That verification used `pause:3.10.1`; step 30 applies the updated `3.10.2` pin required by kubeadm. No failed systemd units remained. Evidence is in ignored `.state/runtime-install-20261018T185649Z/` and `.state/<VM>/`.
 
 For runtime inspection commands, see [Lesson 05](../docs/lessons/05-install-containerd.md).
 
@@ -703,9 +703,169 @@ This adds no kubelet or containerd to WSL. The kubeconfig and named context come
 
 Completed on 2026-10-18: Kubernetes tools `1.36.5-1.1` on all four guests, cri-tools `1.36.0-1.1`, CNI helpers `1.9.1-1.1`, and kubectl `1.36.5-1.1` on WSL. Verified exact versions, holds, runtime readiness, kubelet service definitions, and absence of bootstrap configuration. Evidence is in ignored `.state/kubernetes-tools-20261018T190816Z/` and `.state/<VM>/`.
 
-Next: initialize the control plane with kubeadm. [Lesson 06](../docs/lessons/06-install-kubernetes-tools.md) explains the installed tools.
+[Lesson 06](../docs/lessons/06-install-kubernetes-tools.md) explains the installed tools. The owner completed [Lesson 07](../docs/lessons/07-initialize-the-control-plane.md), steps 30–35. The agent then verified sandbox-image alignment, API readiness, static Pods, and generated files.
 
 References: [official installation guide](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/), [supported releases](https://kubernetes.io/releases/).
+
+## 30. Align the runtime sandbox image
+
+- [x] In WSL, apply the updated [containerd configuration](runtime/containerd.toml) to all four guests before bootstrap.
+
+Kubeadm `v1.36.5` expects `pause:3.10.2`; the initial runtime setup used `3.10.1`. This restarts containerd on the still-empty nodes and downloads the matching sandbox image.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+(
+  set -e
+  while read -r name ip mac disk; do
+    scp -B -i "$HOME/.ssh/bank-lab" runtime/containerd.toml \
+      "lab@$ip:/tmp/bank-lab-containerd.toml" < /dev/null
+    ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" '
+      set -e
+      hostname
+      sudo test ! -e /etc/kubernetes/kubelet.conf
+      sudo containerd --config /tmp/bank-lab-containerd.toml config dump > /dev/null
+      sudo install -m 0644 /tmp/bank-lab-containerd.toml /etc/containerd/config.toml
+      sudo systemctl restart containerd
+      sudo crictl pull registry.k8s.io/pause:3.10.2
+      rm -- /tmp/bank-lab-containerd.toml
+    '
+  done < inventory.tsv
+)
+```
+
+## 31. Review and copy the bootstrap configuration
+
+- [x] In WSL, read [kubeadm-init.yaml](kubernetes/kubeadm-init.yaml), copy it to the control plane, and connect.
+
+```bash
+cat kubernetes/kubeadm-init.yaml
+scp -B -i "$HOME/.ssh/bank-lab" kubernetes/kubeadm-init.yaml \
+  lab@192.168.77.10:/tmp/bank-lab-kubeadm-init.yaml
+ssh -i "$HOME/.ssh/bank-lab" lab@192.168.77.10
+```
+
+The API uses `192.168.77.10:6443`, Pods use `10.244.0.0/16`, and Services use `10.96.0.0/12`. Windows, WSL, and control-plane routes were checked on 2026-10-18 without overlap. Recheck if VPN or network settings have changed.
+
+## 32. Validate the configuration and download images
+
+- [x] Inside `bank-lab-cp1`, verify this is a fresh bootstrap, install the input file, and pull the listed images.
+
+```bash
+(
+  set -e
+  test "$(hostname)" = bank-lab-cp1
+  sudo test ! -e /etc/kubernetes/admin.conf
+  sudo test ! -e /etc/kubernetes/pki/ca.crt
+  sudo test ! -e /etc/kubernetes/manifests/kube-apiserver.yaml
+  sudo test ! -e /var/lib/etcd/member
+  systemctl is-active containerd
+  sudo install -d -m 0755 /etc/kubernetes
+  sudo install -m 0644 /tmp/bank-lab-kubeadm-init.yaml /etc/kubernetes/kubeadm-init.yaml
+  rm -- /tmp/bank-lab-kubeadm-init.yaml
+  sudo kubeadm config validate --config /etc/kubernetes/kubeadm-init.yaml
+  sudo kubeadm config images list --config /etc/kubernetes/kubeadm-init.yaml
+  sudo kubeadm config images pull --config /etc/kubernetes/kubeadm-init.yaml
+)
+```
+
+Validation and image download do not create the cluster. Stop if a guard fails or files from an earlier bootstrap exist; do not reset the node automatically.
+
+## 33. Initialize the control plane
+
+- [x] Inside `bank-lab-cp1` only, run init once.
+
+```bash
+sudo kubeadm init --config /etc/kubernetes/kubeadm-init.yaml
+```
+
+Init runs its own preflight checks, creates certificates/configuration, and starts kubelet and the control-plane Pods. Wait for the successful initialization message. Keep the printed worker join command for the later join step; do not run it yet. If init fails, keep its output and investigate before repeating it.
+
+## 34. Inspect the API and system Pods
+
+- [x] Still inside `bank-lab-cp1`, use its generated admin kubeconfig for these checks.
+
+```bash
+sudo kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw='/readyz?verbose'
+sudo kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o wide
+sudo kubectl --kubeconfig /etc/kubernetes/admin.conf get pods -A -o wide
+sudo crictl ps
+```
+
+Require a successful API readiness response and running API server, scheduler, controller manager, and etcd. Expect only `bank-lab-cp1` to be registered, with `NotReady` until CNI is installed. CoreDNS may remain `Pending` until networking and schedulable workers are available. The operator's WSL kubeconfig/context is a later step.
+
+## 35. Inspect the generated files
+
+- [x] Inside `bank-lab-cp1`, inspect the outputs without editing them.
+
+```bash
+sudo ls -l /etc/kubernetes/manifests/
+sudo ls -l /etc/kubernetes/pki/
+sudo grep -E '^(cgroupDriver|failSwapOn):' /var/lib/kubelet/config.yaml
+sudo ls -ld /var/lib/etcd/member
+```
+
+The manifests describe the four static Pods; `pki/` holds their certificates and keys, the kubelet file holds node-agent settings, and etcd stores cluster state. Generated credentials and runtime output stay out of Git.
+
+Stop here. Next is the separate Flannel installation step, followed by worker joins.
+
+References: [create a kubeadm cluster](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/), [kubeadm configuration API](https://v1-36.docs.kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/).
+
+## 36. Configure the WSL operator context
+
+- [x] In WSL, retrieve generated admin access over SSH and merge it into `~/.kube/config`.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+(
+  set -e
+  umask 077
+  mkdir -p .state/access
+  ssh -n -i "$HOME/.ssh/bank-lab" lab@192.168.77.10 \
+    'sudo cat /etc/kubernetes/admin.conf' > .state/access/admin.conf
+  python3 merge-kubeconfig.py .state/access/admin.conf --backup-dir .state/access
+)
+```
+
+The [merge helper](merge-kubeconfig.py) names the cluster/context `bank-lab` and user `bank-lab-admin`, preserves existing entries, backs up an existing file before changes, and selects the lab context. Conflicting lab names stop the merge for inspection. Access has local cluster-admin privileges; generated credentials stay ignored.
+
+## 37. Configure the control-plane user's fallback access
+
+- [x] From WSL, run the same helper as `lab` inside cp1.
+
+```bash
+ssh -i "$HOME/.ssh/bank-lab" lab@192.168.77.10 '
+  set -e
+  umask 077
+  STAGE=$(mktemp -d /tmp/bank-lab-access.XXXXXX)
+  sudo cat /etc/kubernetes/admin.conf > "$STAGE/admin.conf"
+  python3 - "$STAGE/admin.conf" --backup-dir "$HOME/.kube/bank-lab-backups"
+  rm -- "$STAGE/admin.conf"
+  rmdir -- "$STAGE"
+' < merge-kubeconfig.py
+```
+
+This configures `/home/lab/.kube/config` in that VM. It does not change `/etc/kubernetes/admin.conf` or the cluster.
+
+## 38. Verify normal kubectl commands
+
+- [x] In WSL, use the selected context without sudo or a config flag.
+
+```bash
+kubectl config get-contexts
+kubectl config current-context
+kubectl get nodes -o wide
+kubectl get pods -A -o wide
+kubectl --context bank-lab get --raw=/readyz
+```
+
+The same commands work after SSH into cp1 as `lab`. Kubectl reads `~/.kube/config` by default; a previously exported `KUBECONFIG` overrides it, so unset that variable in any terminal where it remains set. No shell startup files were changed.
+
+Verified on 2026-10-18 from fresh shells in WSL and cp1: context `bank-lab`, TLS-verified API readiness, and one registered NotReady control-plane node. Its four static Pods and kube-proxy were running; CoreDNS remained Pending. All four guests use and cache `pause:3.10.2`. Evidence is ignored under `.state/operator-access-20261018T194142Z/`.
+
+See [Lesson 08](../docs/lessons/08-kubeconfig-and-debugging.md) for the kubeconfig explanation and debugging workflow. Next remains Flannel installation, followed by worker joins.
+
+Reference: [kubeconfig defaults and context selection](https://v1-36.docs.kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/).
 
 ## Daily commands
 

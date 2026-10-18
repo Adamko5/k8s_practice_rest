@@ -10,7 +10,7 @@ The aim is to understand the setup as well as the application: machine networkin
 
 Four Ubuntu Server VMs now run under QEMU/KVM and libvirt inside the dedicated WSL distro `k8s-lab`. All four finished cloud-init and passed SSH checks. Control-plane KVM acceleration and traffic between the control plane and worker 1 were verified. The earlier kind cluster was removed to practise manual machine preparation and Kubernetes installation.
 
-Guest identity, clock, network, and firewall checks are complete, along with guest OS preparation. Containerd passed reboot checks on all four VMs, and Kubernetes tools `v1.36.5` are installed and pinned. WSL has a matching kubectl client. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Control-plane initialization comes next.
+Guest OS preparation, containerd, and Kubernetes tools `v1.36.5` are installed. The owner initialized the control plane; its API, scheduler, controller manager, and etcd are running. Normal kubectl access works from WSL and inside the control-plane VM using context `bank-lab`. Pod networking and worker joins come next, so the single registered node is currently NotReady. The [environment guide](environment/TODO.md) contains reproduction and lifecycle commands.
 
 ## The machines and the experiment
 
@@ -61,5 +61,7 @@ The committed `.env` contains intentionally public credentials for the disposabl
 - [Prepare Linux for Kubernetes](docs/lessons/04-prepare-linux-for-kubernetes.md): swap, kernel modules, network sysctls, and a reboot check.
 - [Install and inspect containerd](docs/lessons/05-install-containerd.md): runtime packages, CRI, systemd cgroups, and commands to try.
 - [Install Kubernetes tools](docs/lessons/06-install-kubernetes-tools.md): kubeadm, kubelet, kubectl, and the state before bootstrap.
+- [Initialize the control plane](docs/lessons/07-initialize-the-control-plane.md): bootstrap configuration, kubeadm init, and inspection before Pod networking.
+- [Kubeconfig and debugging](docs/lessons/08-kubeconfig-and-debugging.md): normal kubectl access and node inspection when the API is unavailable.
 - [Architecture](ARCHITECTURE.md): the planned components and connections.
 - [AI collaboration context](AGENTS.md): scope and guidance for continuing the lab.

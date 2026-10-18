@@ -26,4 +26,4 @@ sudo crictl ps -a                    # Containers, including stopped ones
 sudo crictl info                     # Runtime readiness and configuration
 ```
 
-Expect the cached `pause:3.10.1` image and no containers yet. `RuntimeReady` should be true; `NetworkReady` remains false until we install Pod networking. An image in the cache is not a running container. Use `exit` to return to WSL.
+Expect a cached `pause` image and no containers yet. `RuntimeReady` should be true; `NetworkReady` remains false until we install Pod networking. An image in the cache is not a running container. Use `exit` to return to WSL.

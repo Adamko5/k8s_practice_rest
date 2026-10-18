@@ -12,7 +12,7 @@ The owner wants the experience of administering separate remote Linux machines. 
 - [x] Create the dedicated Ubuntu 24.04 WSL distro `k8s-lab`, verify its `lab` login, and move its storage to `C:\Me\Dev\WSL\k8s-lab`. VM tools and guest disks will live there, separate from personal Ubuntu.
 - [x] Create four plain Ubuntu VMs with QEMU/KVM + libvirt and verify SSH and cloud-init on each. Control-plane KVM acceleration and two-way TCP connectivity with worker 1 were verified.
 
-The owner completed Lesson 03's machine inspections and Lesson 04's guest OS preparation. The agent installed containerd and verified it after reboot, then installed Kubernetes tools `v1.36.5` on all four VMs and kubectl on WSL at the owner's request. [Lesson 06](docs/lessons/06-install-kubernetes-tools.md) explains the tools and gives inspection commands. Next: step 10, control-plane initialization. Kubernetes/CNI port checks follow when those components are running.
+The owner completed guest preparation, sandbox-image alignment, and control-plane initialization. The API and four control-plane static Pods are running. Normal kubectl access is configured in WSL and on cp1 with context `bank-lab`; [Lesson 08](docs/lessons/08-kubeconfig-and-debugging.md) explains access and debugging. Next: step 11, Flannel, followed by worker joins. One registered NotReady node and Pending CoreDNS are expected before those steps.
 
 The API language and framework remain the owner's choice. PostgreSQL, fictional banking data, k6, and the final HPA experiment stay in scope. Kafka and database replication/sharding remain deferred.
 
@@ -126,11 +126,12 @@ Check: exact packages are installed, a version record exists, and Kubernetes has
 
 ### 10. Initialize the control plane with kubeadm
 
-Focus: bootstrap and cluster configuration. Planned file: `environment/kubernetes/kubeadm-init.yaml`.
+Focus: bootstrap and cluster configuration. Follow [Lesson 07](docs/lessons/07-initialize-the-control-plane.md) and `environment/TODO.md` steps 30–35. File: `environment/kubernetes/kubeadm-init.yaml`.
 
-- [ ] Write and review the versioned kubeadm configuration: supported config API, node identity, stable API endpoint, certificate SANs, runtime socket, Pod CIDR, and Service CIDR.
-- [ ] Run `kubeadm init` manually on `bank-lab-cp1` and inspect its output, certificates, kubelet configuration, static Pod manifests, and local etcd data.
-- [ ] Explain why a single control plane and no installed Pod network are expected at this stage. Inspect the resulting system components without changing their generated files casually.
+- [x] Write and review the versioned kubeadm configuration: supported config API, node identity, stable API endpoint, certificate SANs, runtime socket, Pod CIDR, and Service CIDR. Validated with kubeadm `v1.36.5` and applied by the owner.
+- [x] Align all four runtimes with kubeadm's expected sandbox image `pause:3.10.2`; effective configuration and cached image verified on every guest.
+- [x] Run `kubeadm init` manually on `bank-lab-cp1` and inspect its output, certificates, kubelet configuration, static Pod manifests, and local etcd data.
+- [x] Explain why a single control plane and no installed Pod network are expected at this stage. Inspect the resulting system components without changing their generated files casually.
 
 Check: the control-plane API is reachable using its generated access configuration. Pending or NotReady networking-dependent components are explained before CNI installation.
 
@@ -159,12 +160,12 @@ Check: this is a working upstream Kubernetes cluster distributed across four Lin
 
 ### 13. Configure kubeconfig and contexts for normal operation
 
-Focus: how the operator authenticates and selects a cluster.
+Focus: how the operator authenticates and selects a cluster. Configured early at the owner's request; see [Lesson 08](docs/lessons/08-kubeconfig-and-debugging.md) and `environment/TODO.md` steps 36–38.
 
-- [ ] Stage generated access configuration in ignored `environment/.state/`, with lab-specific cluster/user/context names.
-- [ ] Deliberately merge lab access into the owner's standard `~/.kube/config` while preserving other entries. Use context `bank-lab`; do not overwrite the personal file or require shell startup edits.
+- [x] Stage generated access configuration in ignored `environment/.state/`, with lab-specific cluster/user/context names.
+- [x] Deliberately merge lab access into the owner's standard `~/.kube/config` while preserving other entries. Use context `bank-lab`; do not overwrite the personal file or require shell startup edits.
 - [ ] Practice `kubectl config get-contexts`, `current-context`, `use-context`, and explicit `--context`. Explain that a context combines cluster, user, and an optional namespace.
-- [ ] Verify ordinary `kubectl get nodes` works in a fresh terminal. Explain that local bootstrap-admin access is different from a company's identity and RBAC setup.
+- [x] Verify ordinary `kubectl get nodes` works in a fresh terminal. Explain that local bootstrap-admin access is different from a company's identity and RBAC setup.
 
 Check: the learner knows which cluster commands affect and can use the normal kubectl workflow without repeating a project file flag.
 
@@ -522,6 +523,8 @@ Check: another person can reproduce the experiment, see API replicas spread acro
 - [ ] Results, limitations, recovery steps, and reproduction instructions are recorded accurately.
 
 ## Deferred work
+
+The owner requested later disaster-recovery exercises. Plan API/node outage diagnosis and control-plane recovery using tested etcd snapshots plus the required PKI/configuration backups. Keep PostgreSQL restore separate. No destructive recovery drill is authorized during the current bootstrap steps.
 
 Database read replicas, automated failover, and sharding can follow the completed lab. They require database-specific work beyond increasing a StatefulSet replica count.
 

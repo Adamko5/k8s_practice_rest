@@ -1,0 +1,33 @@
+# Identity and runtime of this control-plane VM.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 192.168.77.10
+  bindPort: 6443
+nodeRegistration:
+  name: bank-lab-cp1
+  criSocket: unix:///run/containerd/containerd.sock
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "192.168.77.10"
+---
+# Cluster endpoint, version, certificate addresses, and network ranges.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: bank-lab
+kubernetesVersion: v1.36.5
+controlPlaneEndpoint: "192.168.77.10:6443"
+apiServer:
+  certSANs:
+    - "192.168.77.10"
+    - bank-lab-cp1
+networking:
+  dnsDomain: cluster.local
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/12
+---
+# Node-agent settings, also used by workers when they join.
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+failSwapOn: true

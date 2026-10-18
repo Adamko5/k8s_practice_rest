@@ -27,4 +27,4 @@ systemctl is-enabled kubelet           # Enabled for future boots
 systemctl show kubelet -p ActiveState  # Intentionally inactive before bootstrap
 ```
 
-Kubelet is enabled but stopped until `kubeadm init` or `join` writes its configuration and starts it. Rebooting a guest before bootstrap can make kubelet report the missing configuration. The cluster and its kubeconfig do not exist yet. `kubectl get nodes` becomes useful after bootstrap and operator access setup. Use `exit` to return to WSL.
+At this checkpoint, kubelet is enabled but stopped until `kubeadm init` or `join` writes its configuration and starts it. Rebooting a guest before bootstrap can make kubelet report the missing configuration. Later lessons initialize cp1 and configure kubectl access. Use `exit` to return to WSL.
