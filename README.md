@@ -10,7 +10,7 @@ The aim is to understand the setup as well as the application: machine networkin
 
 Four Ubuntu Server VMs now run under QEMU/KVM and libvirt inside the dedicated WSL distro `k8s-lab`. All four finished cloud-init and passed SSH checks. Control-plane KVM acceleration and traffic between the control plane and worker 1 were verified. The earlier kind cluster was removed to practise manual machine preparation and Kubernetes installation.
 
-Guest identity, clock, network, and firewall checks are complete, along with guest OS preparation. Containerd is installed and verified after reboot on all four VMs. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Kubernetes installation comes next, followed by the application.
+Guest identity, clock, network, and firewall checks are complete, along with guest OS preparation. Containerd passed reboot checks on all four VMs, and Kubernetes tools `v1.36.5` are installed and pinned. WSL has a matching kubectl client. The [environment guide](environment/TODO.md) covers reproduction and startup/shutdown scripts. Control-plane initialization comes next.
 
 ## The machines and the experiment
 
@@ -60,5 +60,6 @@ The committed `.env` contains intentionally public credentials for the disposabl
 - [Verify the Linux machines](docs/lessons/03-verify-the-linux-machines.md): guest identity, clocks, and networking.
 - [Prepare Linux for Kubernetes](docs/lessons/04-prepare-linux-for-kubernetes.md): swap, kernel modules, network sysctls, and a reboot check.
 - [Install and inspect containerd](docs/lessons/05-install-containerd.md): runtime packages, CRI, systemd cgroups, and commands to try.
+- [Install Kubernetes tools](docs/lessons/06-install-kubernetes-tools.md): kubeadm, kubelet, kubectl, and the state before bootstrap.
 - [Architecture](ARCHITECTURE.md): the planned components and connections.
 - [AI collaboration context](AGENTS.md): scope and guidance for continuing the lab.

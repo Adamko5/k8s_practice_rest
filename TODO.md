@@ -12,7 +12,7 @@ The owner wants the experience of administering separate remote Linux machines. 
 - [x] Create the dedicated Ubuntu 24.04 WSL distro `k8s-lab`, verify its `lab` login, and move its storage to `C:\Me\Dev\WSL\k8s-lab`. VM tools and guest disks will live there, separate from personal Ubuntu.
 - [x] Create four plain Ubuntu VMs with QEMU/KVM + libvirt and verify SSH and cloud-init on each. Control-plane KVM acceleration and two-way TCP connectivity with worker 1 were verified.
 
-The owner completed Lesson 03's machine inspections and Lesson 04's guest OS preparation. At the owner's request, the agent installed containerd, runc, and crictl on all four VMs and verified runtime readiness after reboot. [Lesson 05](docs/lessons/05-install-containerd.md) explains the runtime and gives inspection commands. Next: step 09, Kubernetes node tools. Kubernetes/CNI port checks follow when those components are installed.
+The owner completed Lesson 03's machine inspections and Lesson 04's guest OS preparation. The agent installed containerd and verified it after reboot, then installed Kubernetes tools `v1.36.5` on all four VMs and kubectl on WSL at the owner's request. [Lesson 06](docs/lessons/06-install-kubernetes-tools.md) explains the tools and gives inspection commands. Next: step 10, control-plane initialization. Kubernetes/CNI port checks follow when those components are running.
 
 The API language and framework remain the owner's choice. PostgreSQL, fictional banking data, k6, and the final HPA experiment stay in scope. Kafka and database replication/sharding remain deferred.
 
@@ -115,12 +115,12 @@ Check: the runtime is healthy on every VM and its configuration is understood in
 
 ### 09. Install Kubernetes node tools and pin versions
 
-Focus: packages and component responsibilities.
+Focus: packages and component responsibilities. See [Lesson 06](docs/lessons/06-install-kubernetes-tools.md) and `environment/kubernetes/`.
 
-- [ ] Select an actively supported patch release, initially targeting Kubernetes 1.36.x to match the existing client minor, and verify the guest/runtime/CNI compatibility matrix.
-- [ ] Configure the official package repository and install exact kubeadm and kubelet versions on each guest. Install kubectl where needed and retain a compatible workstation client.
-- [ ] Record repository keys, package versions, holds, and intentional update procedures. Explain kubeadm, kubelet, and kubectl separately.
-- [ ] Inspect the kubelet unit and recognize that bootstrap may be incomplete before init/join; do not mistake that expected stage for a completed cluster.
+- [x] Select supported Kubernetes `v1.36.5` and verify compatibility with containerd 2.2.1. Install the repository's pinned CNI helper package; selecting/configuring Flannel remains its own step.
+- [x] Configure the official package repository and install exact kubeadm, kubelet, and kubectl versions on each guest, plus the matching kubectl client on WSL.
+- [x] Record repository keys, package versions, holds, and the requirement to use the kubeadm upgrade workflow. Explain kubeadm, kubelet, and kubectl separately.
+- [x] Inspect the kubelet unit and leave it enabled but stopped until init/join writes its configuration; this stage does not initialize the cluster.
 
 Check: exact packages are installed, a version record exists, and Kubernetes has not yet been initialized.
 

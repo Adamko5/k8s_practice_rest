@@ -13,6 +13,6 @@ Each VM has its own kernel, disk, IP, and SSH server. They share the physical PC
 
 The WSL disk lives in `C:\Me\Dev\WSL\k8s-lab`. VM disks live inside it at `/var/lib/libvirt/images/k8s-banking-lab/`. Sparse VM disks grow as used; 105 GiB is their combined capacity. The repo stays on Windows; generated files go in ignored `.state/`.
 
-All four VMs passed guest identity/network checks and OS preparation. Containerd, runc, and crictl are installed; runtime readiness and configuration survived a reboot on every guest. [Runtime setup commands](TODO.md#19-copy-the-containerd-settings) remain available for reproduction. Kubernetes node tools come next.
+All four VMs passed guest identity/network checks, OS preparation, and containerd reboot checks. Kubernetes tools `v1.36.5` are installed and pinned on every guest; WSL has a matching kubectl client. Kubelet is enabled but stopped until bootstrap. Next: initialize the control plane with kubeadm.
 
 Follow [TODO.md](TODO.md) to reproduce the setup. Use [start.sh](start.sh) and [stop.sh](stop.sh) for daily startup and shutdown; commands are in [Daily commands](TODO.md#daily-commands).

@@ -554,9 +554,158 @@ done < inventory.tsv
 
 Completed on all four guests on 2026-10-18 at the owner's request: pinned packages, systemd cgroups, CRI readiness, pause image pull, and checks after reboot. No failed systemd units remained. Evidence is in ignored `.state/runtime-install-20261018T185649Z/` and `.state/<VM>/`.
 
-Next: install the pinned Kubernetes node tools as a separate lesson. For inspection commands, see [Lesson 05](../docs/lessons/05-install-containerd.md).
+For runtime inspection commands, see [Lesson 05](../docs/lessons/05-install-containerd.md).
 
 References: [Ubuntu containerd package](https://packages.ubuntu.com/noble-updates/containerd), [Ubuntu runc package](https://packages.ubuntu.com/noble-updates/runc), [containerd/Kubernetes compatibility](https://github.com/containerd/containerd/blob/main/RELEASES.md#kubernetes-support), [containerd 2.2 configuration](https://github.com/containerd/containerd/blob/v2.2.1/docs/cri/config.md), [crictl release and checksum](https://github.com/kubernetes-sigs/cri-tools/releases/tag/v1.36.0).
+
+## 25. Copy the Kubernetes package settings
+
+- [x] From `environment/` in WSL, copy [the pins](kubernetes/versions.env) and [APT repository](kubernetes/kubernetes.list) to all four guests.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+(
+  set -e
+  while read -r name ip mac disk; do
+    ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" \
+      'install -d -m 0755 /tmp/bank-lab-kubernetes'
+    scp -B -i "$HOME/.ssh/bank-lab" \
+      kubernetes/versions.env kubernetes/kubernetes.list \
+      "lab@$ip:/tmp/bank-lab-kubernetes/" < /dev/null
+  done < inventory.tsv
+)
+NODE_IP=192.168.77.10
+ssh -i "$HOME/.ssh/bank-lab" "lab@$NODE_IP"
+```
+
+Run steps 26–28 inside this guest, then repeat on `192.168.77.11`, `.12`, and `.13` from WSL.
+
+## 26. Add the official Kubernetes repository
+
+- [x] Inside the guest, load the pins, verify the signing-key download, and add the repository for Kubernetes 1.36.
+
+```bash
+source /tmp/bank-lab-kubernetes/versions.env
+STAGE=/tmp/bank-lab-kubernetes
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gpg
+curl -fL "https://pkgs.k8s.io/core:/stable:/$KUBERNETES_MINOR/deb/Release.key" \
+  -o "$STAGE/Release.key"
+printf '%s  %s\n' "$KUBERNETES_KEY_SHA256" "$STAGE/Release.key" | sha256sum -c -
+install -d -m 0700 "$STAGE/gnupg"
+gpg --batch --yes --homedir "$STAGE/gnupg" --dearmor \
+  --output "$STAGE/key.gpg" "$STAGE/Release.key"
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo install -m 0644 "$STAGE/key.gpg" /etc/apt/keyrings/bank-lab-kubernetes.gpg
+sudo install -m 0644 "$STAGE/kubernetes.list" /etc/apt/sources.list.d/bank-lab-kubernetes.list
+sudo apt-get update
+apt-cache policy kubeadm kubelet kubectl cri-tools kubernetes-cni
+```
+
+`source` loads our pinned versions into this shell. The repository uses the named key through `signed-by`; APT checks its signatures and package checksums.
+
+## 27. Install the node tools and package-managed crictl
+
+- [x] Inside the guest, install exact versions and hold them.
+
+```bash
+sudo apt-get install -y \
+  "kubeadm=$KUBERNETES_PACKAGE_VERSION" \
+  "kubelet=$KUBERNETES_PACKAGE_VERSION" \
+  "kubectl=$KUBERNETES_PACKAGE_VERSION" \
+  "cri-tools=$CRI_TOOLS_PACKAGE_VERSION" \
+  "kubernetes-cni=$CNI_PACKAGE_VERSION"
+sudo apt-mark hold kubeadm kubelet kubectl cri-tools kubernetes-cni
+```
+
+Verify the packaged crictl, then remove only the manual binary installed in Lesson 05:
+
+```bash
+(
+  set -e
+  /usr/bin/crictl --version | grep -Fx 'crictl version v1.36.0'
+  dpkg-query -S /usr/bin/crictl
+  test -f /usr/local/bin/crictl
+  test ! -L /usr/local/bin/crictl
+  /usr/local/bin/crictl --version | grep -Fx 'crictl version v1.36.0'
+  sudo rm -- /usr/local/bin/crictl
+)
+hash -r
+command -v crictl
+sudo crictl version
+```
+
+Expect `/usr/bin/crictl`; `/etc/crictl.yaml` stays in use. The CNI package supplies binaries, not a configured Pod network.
+
+## 28. Inspect kubelet before bootstrap
+
+- [x] Inside the guest, enable kubelet for boot and leave it stopped until init/join generates its configuration.
+
+```bash
+sudo systemctl enable kubelet
+sudo systemctl stop kubelet
+sudo systemctl reset-failed kubelet
+systemctl cat kubelet
+systemctl show kubelet -p LoadState -p ActiveState -p UnitFileState
+test ! -e /var/lib/kubelet/config.yaml
+test ! -e /etc/kubernetes/kubelet.conf
+kubeadm version -o short
+kubelet --version
+kubectl version --client
+dpkg-query -W kubeadm kubelet kubectl cri-tools kubernetes-cni
+apt-mark showhold
+sudo crictl info
+rm -- "$STAGE/versions.env" "$STAGE/kubernetes.list" "$STAGE/Release.key" "$STAGE/key.gpg"
+rmdir -- "$STAGE/gnupg" "$STAGE"
+exit
+```
+
+Expect Kubernetes `v1.36.5`, kubelet loaded/enabled/inactive, and CRI `RuntimeReady` true. Kubelet has no cluster configuration yet. `kubeadm init`/`join` will write it and start the service; a reboot before then can produce missing-configuration errors from kubelet.
+
+After all four guests pass, record versions from WSL:
+
+```bash
+while read -r name ip mac disk; do
+  mkdir -p ".state/$name"
+  ssh -n -i "$HOME/.ssh/bank-lab" "lab@$ip" \
+    'dpkg-query -W kubeadm kubelet kubectl cri-tools kubernetes-cni' \
+    > ".state/$name/kubernetes-tools-versions.txt"
+done < inventory.tsv
+```
+
+## 29. Install the operator's kubectl
+
+- [x] In WSL, add the same repository and install only kubectl.
+
+```bash
+cd /mnt/c/Me/Dev/learning/k8s_commands/environment
+source kubernetes/versions.env
+STAGE="$PWD/.state/operator-kubernetes"
+mkdir -p "$STAGE"
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gpg
+curl -fL "https://pkgs.k8s.io/core:/stable:/$KUBERNETES_MINOR/deb/Release.key" \
+  -o "$STAGE/Release.key"
+printf '%s  %s\n' "$KUBERNETES_KEY_SHA256" "$STAGE/Release.key" | sha256sum -c -
+install -d -m 0700 "$STAGE/gnupg"
+gpg --batch --yes --homedir "$STAGE/gnupg" --dearmor \
+  --output "$STAGE/key.gpg" "$STAGE/Release.key"
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo install -m 0644 "$STAGE/key.gpg" /etc/apt/keyrings/bank-lab-kubernetes.gpg
+sudo install -m 0644 kubernetes/kubernetes.list /etc/apt/sources.list.d/bank-lab-kubernetes.list
+sudo apt-get update
+sudo apt-get install -y "kubectl=$KUBERNETES_PACKAGE_VERSION"
+sudo apt-mark hold kubectl
+kubectl version --client
+```
+
+This adds no kubelet or containerd to WSL. The kubeconfig and named context come after bootstrap. Change version pins deliberately; cluster upgrades later require the kubeadm upgrade procedure before lifting package holds.
+
+Completed on 2026-10-18: Kubernetes tools `1.36.5-1.1` on all four guests, cri-tools `1.36.0-1.1`, CNI helpers `1.9.1-1.1`, and kubectl `1.36.5-1.1` on WSL. Verified exact versions, holds, runtime readiness, kubelet service definitions, and absence of bootstrap configuration. Evidence is in ignored `.state/kubernetes-tools-20261018T190816Z/` and `.state/<VM>/`.
+
+Next: initialize the control plane with kubeadm. [Lesson 06](../docs/lessons/06-install-kubernetes-tools.md) explains the installed tools.
+
+References: [official installation guide](https://v1-36.docs.kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/), [supported releases](https://kubernetes.io/releases/).
 
 ## Daily commands
 
