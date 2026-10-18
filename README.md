@@ -8,7 +8,7 @@ The aim is to understand the commands, configuration files, and decisions behind
 
 ## Project status
 
-Planning stage. The repository currently contains the learning plan and architecture documentation. The API, database setup, Kubernetes manifests, and load tests are still to be implemented.
+Host/workspace preparation is complete. Lesson 2 is ready for creating and inspecting the local cluster. The repository currently contains the guides and local configuration; the cluster and application deployment are still to be built.
 
 ## The experiment
 
@@ -38,6 +38,7 @@ The application will use synthetic customers, accounts, balances, and transactio
 
 | Part | Initial choice |
 | --- | --- |
+| Terminal workflow | Linux Bash in WSL 2 |
 | Local infrastructure | Docker Desktop with Linux containers, kind |
 | Kubernetes workflow | `kubectl`, plain YAML first, Kustomize later |
 | REST API | Language and framework to be decided |
@@ -45,8 +46,12 @@ The application will use synthetic customers, accounts, balances, and transactio
 | Load generation | k6 |
 | Autoscaling | Metrics Server and Kubernetes HPA |
 
+The committed `.env` contains intentionally public credentials for this disposable local lab. They are part of the reproducible setup and are used only with fictional data.
+
 ## Read the project
 
+- [Start with the host and workspace checks](docs/lessons/01-host-and-workspace.md): Linux commands to run from WSL.
+- [Create the Kubernetes cluster](docs/lessons/02-create-the-cluster.md): define the simulated machines, create them with kind, and inspect the result.
 - [Implementation and learning plan](TODO.md): ordered steps with checks for each concept.
 - [Architecture](ARCHITECTURE.md): the planned components and their connections.
 - [AI collaboration context](AGENTS.md): goals, scope, and guidance for working on the lab.

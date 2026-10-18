@@ -1,0 +1,2 @@
+# Use Linux line endings for text files in both Windows and WSL checkouts.
+* text=auto eol=lf

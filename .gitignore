@@ -5,12 +5,10 @@
 Thumbs.db
 Desktop.ini
 
-# Local environment and credentials; keep example configuration
-.env
-.env.*
-!.env.example
-!.env.*.example
-.secrets/
+# Local lab .env files and fixture credentials are intentionally versioned.
+# See AGENTS.md for the policy and evidence-based exceptions.
+
+# Generated, per-cluster access configuration; recreated by kind
 .kube/
 kubeconfig
 *.kubeconfig

@@ -2,7 +2,7 @@
 
 Build a local Kubernetes lab with one control-plane node, three workers, a REST API, and PostgreSQL. Finish by scaling the API automatically from one to three replicas on different workers under load.
 
-Every implementation task below is still open. The API language and framework are deliberately undecided; the owner will choose them later. PostgreSQL and k6 remain the planned database and load-testing tools.
+Step 01 is complete, as confirmed by the owner. Lesson 02 is ready to follow; cluster creation is still pending. The API language and framework are deliberately undecided; the owner will choose them later. PostgreSQL and k6 remain the planned database and load-testing tools.
 
 ## How to use this plan
 
@@ -16,16 +16,21 @@ Paths mentioned below are planned outputs, not files that already exist.
 
 ### 01. Prepare the host and workspace
 
-- [ ] Check the available CPU, memory, disk space, and Docker allocation before choosing resource budgets.
-- [ ] Verify Docker Desktop with Linux containers, kind, `kubectl`, and Git. Record compatible versions and installation instructions.
-- [ ] Write commands for PowerShell on Windows. Explain WSL requirements and mark any Linux-only alternatives explicitly.
-- [ ] Initialize local Git if needed and add ignores for credentials, virtual environments, backups, and generated files. Keep a safe `.env.example`.
+- [x] Install and initialize a user-facing WSL 2 Linux distribution, such as Ubuntu, and enable its Docker Desktop integration.
+- [x] Check the available CPU, memory, disk space, and Docker allocation before choosing resource budgets.
+- [x] Verify Linux Git, Docker access through WSL integration, kind, and `kubectl` from the WSL distribution. Record compatible versions and any installation steps needed.
+- [x] Standardize commands and examples on Linux Bash in WSL 2. Distinguish workstation, kind-node, and application-container terminals.
+- [x] Prepare the Git workspace and minimal ignores for generated or machine-specific files. Add a working, intentionally public `.env` for disposable local credentials; keep those values committable.
+
+Completed: the owner confirmed the host/workspace checks passed. See [Lesson 01: host and workspace](docs/lessons/01-host-and-workspace.md) for the commands and recorded setup observations.
 
 Check: Docker can run a Linux container, tool versions are recorded, and no application or cluster has been created implicitly.
 
 ### 02. Create the simulated machines
 
 Focus: infrastructure below Kubernetes workloads. Planned file: `cluster/kind.yaml`.
+
+Follow [Lesson 02: create the cluster](docs/lessons/02-create-the-cluster.md). Keep lab access in the ignored `cluster/bank-lab.kubeconfig` file so personal cluster configuration stays separate.
 
 - [ ] Define a named `bank-lab` kind cluster with one control-plane node and three worker nodes.
 - [ ] Reserve a loopback-only host mapping from port 8080 to NodePort 30080 on a kind node for the later traffic experiment.
@@ -38,7 +43,7 @@ Check: all four node containers exist. The Docker network connects them; separat
 
 Focus: how `kubectl` finds and talks to a cluster.
 
-- [ ] Inspect the active context and select the lab context explicitly. Explain kubeconfig's cluster, user, and context entries without exposing credentials.
+- [ ] Inspect the active context and select the lab context explicitly. Explain kubeconfig's cluster, user, and context entries, and why generated per-cluster access files are kept out of Git.
 - [ ] Practice `kubectl cluster-info`, `get nodes -o wide`, `describe node`, `api-resources`, and `explain`.
 - [ ] Locate the control-plane and system Pods. Identify each node's capacity, allocatable resources, and taints.
 
@@ -115,13 +120,13 @@ Check: a configuration change can be applied and verified without rebuilding the
 
 ### 10. Add credentials with a Secret
 
-Focus: sensitive configuration. Planned output: documented local Secret creation and safe example values.
+Focus: Kubernetes Secret resources using intentionally public lab credentials. Planned output: reproducible Secret creation from versioned local values.
 
-- [ ] Create database credentials locally and reference the Secret from the relevant workloads.
-- [ ] Keep actual credentials out of Git, logs, screenshots, and recorded terminal output. Explain that base64 encoding is not encryption.
-- [ ] Practice inspecting Secret metadata and references without printing its contents.
+- [ ] Use the committed `.env` values to create the local database Secret and reference it from the relevant workloads. Explain the explicit command that reads `.env`.
+- [ ] Keep disposable local credentials and their configuration versioned. Explain that a Kubernetes Secret is a resource type and base64 encoding is not encryption.
+- [ ] Practice inspecting metadata, references, and the local fixture values. If a value actually grants access outside this disposable lab, explain that concrete exception to the owner.
 
-Check: workloads can reference the Secret, and committed files contain only safe placeholders or generation instructions.
+Check: workloads can reference the Secret, and a fresh checkout contains the working local fixture values needed to recreate it.
 
 ### 11. Add Services and test cluster DNS
 

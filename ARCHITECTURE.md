@@ -1,7 +1,7 @@
 ```mermaid
 flowchart TB
     subgraph HOST["Local computer"]
-        CLIENT["curl / k6"]
+        CLIENT["WSL Linux terminal<br/>curl / k6"]
         PORT["localhost:8080<br/>Docker port mapping"]
 
         subgraph CLUSTER["kind cluster: Docker containers on one network"]
